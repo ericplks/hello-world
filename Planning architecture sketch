@@ -1,0 +1,148 @@
+**Planning architecture sketch**
+
+Okay, I need to create an architecture sketch. I want to keep it concise but still structured, so it’s clear and useful. I’ll avoid being too verbose, but I don’t want to leave out important details. It’s a balancing act, really. I’ll focus on the key elements and make sure it’s easy to follow. No need for citations here, just a clean, straightforward sketch. Let’s get started!
+You’re asking the right question—that’s where Fabric really starts to either sing or become a mess.
+
+Here’s a clean, opinionated architecture you can use as a starting point.
+
+---
+
+### 1. Core principles
+
+- **Store once, share many:** All “official” data lives in a small number of **domain workspaces**, not in report workspaces.
+- **Separation of concerns:**  
+  - Domain workspaces → own and produce data  
+  - Consumer/report workspaces → use data, don’t own it  
+- **Shortcuts, not copies:** Any time you feel like “importing” the same data twice, stop and use a **shortcut** or **shared semantic model** instead.
+- **Least privilege:** Users only get access to what they actually need—at workspace and folder/table level.
+
+---
+
+### 2. Workspace types
+
+**1️⃣ Platform / Landing workspaces**
+
+- **Purpose:** Raw ingestion from source systems.
+- **Examples:**  
+  - `PLT_Landing_ERP`  
+  - `PLT_Landing_CRM`
+- **Characteristics:**  
+  - Raw, unmodeled data  
+  - Very restricted access (data engineers only)  
+  - Not used directly by BI
+
+---
+
+**2️⃣ Domain workspaces (Gold / Curated)**
+
+- **Purpose:** Authoritative, reusable data for the business.
+- **Examples:**  
+  - `DM_Sales`  
+  - `DM_Finance`  
+  - `DM_Operations`
+- **Contents:**  
+  - Lakehouses (Bronze/Silver/Gold folders)  
+  - Warehouses  
+  - Semantic models (Power BI datasets)
+- **Access:**  
+  - Data engineers + domain data stewards  
+  - Read access for analysts who need curated data  
+- **Rule:**  
+  - This is where “truth” lives.  
+  - Anything reused across teams should be here.
+
+---
+
+**3️⃣ Consumer / Report workspaces**
+
+- **Purpose:** Team- or project-specific reporting and self-service.
+- **Examples:**  
+  - `APP_Sales_Analytics`  
+  - `APP_Finance_Reporting`  
+  - `APP_Exec_Dashboards`
+- **Contents:**  
+  - Reports, dashboards  
+  - Thin semantic models (if needed)  
+  - Shortcuts to domain data (or shared semantic models)
+- **Access:**  
+  - Wider audience (business users, stakeholders)  
+- **Rule:**  
+  - No heavy data prep here.  
+  - No duplicated tables.  
+  - Consume, don’t own.
+
+---
+
+### 3. How data flows
+
+**Step 1: Source → Platform**
+
+- Ingest raw data into `PLT_*` workspaces.
+- Keep it as close to source as possible.
+
+**Step 2: Platform → Domain**
+
+- Use pipelines / notebooks to transform into curated tables in `DM_*` workspaces.
+- Organize by layers, e.g.:
+
+  - `/Bronze` → raw-ish  
+  - `/Silver` → cleaned, conformed  
+  - `/Gold` → business-ready, KPI-level
+
+**Step 3: Domain → Consumer**
+
+- In consumer workspaces, **never copy data**.
+- Instead, use:
+  - **Shortcuts** to `DM_*` lakehouses/warehouses  
+  - Or **shared semantic models** from `DM_*` workspaces
+
+---
+
+### 4. Permissions model
+
+**Platform workspaces**
+
+- **Who:** Data engineers only  
+- **Why:** Protect raw data, avoid misuse
+
+**Domain workspaces**
+
+- **Owners:** Data engineering + domain owners  
+- **Readers:** Analysts, BI devs who build on curated data  
+- **Folder-level security:**  
+  - E.g. `/Gold/Restricted` for sensitive data  
+  - Use AD groups per domain/role
+
+**Consumer workspaces**
+
+- **Owners:** BI/report developers  
+- **Viewers:** Business users  
+- **No direct access to Platform**  
+- Only see what’s exposed via domain workspaces.
+
+---
+
+### 5. Using shortcuts cleanly
+
+- **From consumer to domain:**
+  - `APP_Sales_Analytics` → shortcut to `DM_Sales` `/Gold` folder
+- **Different data for different consumers:**
+  - Use folder-level security in `DM_Sales`:
+    - `/Gold/Internal`  
+    - `/Gold/External`  
+  - Give different groups access to different folders; same shortcut path, different visibility.
+
+---
+
+### 6. Naming & governance tips
+
+- **Prefix by type:** `PLT_`, `DM_`, `APP_`
+- **Use domains, not systems:** `DM_Sales` instead of `DM_SAP`
+- **Define ownership:** Each domain workspace has:
+  - **Data owner** (business)  
+  - **Tech owner** (engineering)
+- **Document contracts:** What each `DM_*` workspace guarantees (SLAs, refresh, definitions).
+
+---
+
+If you tell me your main domains (e.g. Sales, Finance, HR) and team structure, I can sketch a concrete version tailored to your org instead of this generic pattern.
